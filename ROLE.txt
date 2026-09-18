@@ -1,17 +1,57 @@
 
 김지윤 A (collector)
 
+목표: YouTube URL 하나 넣으면 → 정제된 댓글 리스트(JSON)가 나온다
+
+해와야 할 것:
+
+YouTube Data API v3 키 발급 (Google Cloud Console)
+commentThreads.list로 댓글·좋아요·작성시간 수집
+전처리: 중복 제거, 스팸/이모지-only 제거, 너무 짧은 댓글 필터
+최종 함수: collect(url) → 댓글 리스트
+
+완료 기준: 아무 유튜브 URL → contracts/comments.schema.json 형식의 comments.json이 나옴
+
+팁: API 키 발급이 오래 걸리니 제일 먼저 시작. 키 나오기 전엔 손으로 만든 가짜 comments.json로 B가 먼저 작업하게 공유해주기.
+
 collector/ 안에 youtube.py, clean.py, __init__.py
 requirements.txt (쓴 라이브러리 목록)
 API 키는 절대 올리지 마 — .env에 넣고 gitignore
 
 박소연 B (analyzer)
 
+🅱️ 담당 B — AI 분석 엔진 (analyzer/) ← 제품의 심장
+
+목표: 댓글 리스트를 받아 → 논쟁 구조 JSON(OpinionMap)을 만든다
+
+해와야 할 것:
+
+Embedding으로 댓글 벡터화 → 비슷한 의견 군집화(clustering)
+LLM으로 각 논점 추출: claim(주장) / stance(입장) / 대표댓글
+논점 사이 관계 분류: support(지지) / attack(반박)
+숨은 의견 통계: 전체 분포 vs 인기댓글 분포 비교
+최종 함수: analyze(댓글) → OpinionMap
+
+완료 기준: comments.json 넣으면 contracts/opinionmap.schema.json 형식 JSON이 나옴
+
+⚠️ 제일 중요: LLM이 스키마에 맞는 JSON만 출력하도록 강제할 것. 자유 텍스트로 답하면 프론트가 못 그림.
+
 analyzer/ 안에 embed.py, cluster.py, extract.py, relate.py, __init__.py
 requirements.txt
 여기도 LLM API 키 절대 금지 — .env
 
 전재호 (C / frontend)
+
+🅲 담당 C (나) — 프론트엔드 / 시각화 (frontend/)
+
+목표: OpinionMap JSON을 받아 → 논쟁 지도 화면을 그린다
+
+해올 것:
+
+Next.js + Tailwind, 그래프는 React Flow
+URL 입력창 → 로딩 → Opinion Map(노드=논점, 선=지지/반박) → 노드 클릭 시 실제 댓글
+개발 초기엔 contracts/sample.opinionmap.json으로 화면 먼저 완성
+Vercel 배포
 
 frontend/ 안에 Next.js 프로젝트 통째로
 올릴 것: app/, components/, package.json, Tailwind 설정 등
