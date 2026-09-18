@@ -1,0 +1,12 @@
+# 비밀키 — 유출 사고
+.env
+*.key
+
+# 프론트 — 용량 폭발
+node_modules/
+.next/
+
+# 파이썬
+__pycache__/
+venv/
+*.pyc

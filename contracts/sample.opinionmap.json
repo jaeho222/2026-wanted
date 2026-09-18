@@ -1,0 +1,79 @@
+{
+  "tech": {
+    "topic": "신제품 가격 인상이 정당한가?",
+    "meta": { "total_comments": 4821, "topic_count": 7, "claim_count": 5 },
+    "claims": [
+      { "id": "c1", "text": "가격이 너무 비싸다", "count": 1241, "stance": "negative",
+        "sample_comments": ["이 가격이면 그냥 작년 모델 쓴다", "성능 대비 가격이 미쳤다"] },
+      { "id": "c2", "text": "환율을 고려하면 납득 가능", "count": 532, "stance": "positive",
+        "sample_comments": ["환율 오른 거 생각하면 이 정도는 어쩔 수 없음", "해외가랑 비교하면 오히려 싼 편"] },
+      { "id": "c3", "text": "혁신이 부족하다", "count": 811, "stance": "negative",
+        "sample_comments": ["작년이랑 뭐가 다른지 모르겠다", "카메라만 조금 바뀌고 값만 올림"] },
+      { "id": "c4", "text": "기본 용량이 그대로다", "count": 438, "stance": "negative",
+        "sample_comments": ["아직도 기본 128기가냐", "용량은 그대로면서 가격만 올리네"] },
+      { "id": "c5", "text": "발열이 심하다", "count": 674, "stance": "negative",
+        "sample_comments": ["30분만 써도 뜨겁다", "게임 돌리면 손 델 정도"] }
+    ],
+    "relations": [
+      { "from": "c2", "to": "c1", "type": "attack" },
+      { "from": "c3", "to": "c1", "type": "support" },
+      { "from": "c4", "to": "c1", "type": "support" },
+      { "from": "c5", "to": "c3", "type": "related" }
+    ],
+    "hidden_opinions": [
+      { "text": "발열 문제", "share": 0.14, "top_share": 0.02 }
+    ]
+  },
+
+  "politics": {
+    "topic": "주 4일제 도입은 바람직한가?",
+    "meta": { "total_comments": 6203, "topic_count": 6, "claim_count": 5 },
+    "claims": [
+      { "id": "c1", "text": "삶의 질이 올라간다", "count": 1580, "stance": "positive",
+        "sample_comments": ["쉬는 날 하루 더 있는 게 얼마나 큰데", "번아웃 줄고 생산성 오른다는 연구 많다"] },
+      { "id": "c2", "text": "급여가 줄어들 것이다", "count": 1122, "stance": "negative",
+        "sample_comments": ["일 덜 하면 월급도 깎이는 거 아니냐", "결국 시급제는 손해임"] },
+      { "id": "c3", "text": "자영업·중소기업엔 부담", "count": 940, "stance": "negative",
+        "sample_comments": ["대기업이나 가능하지 소상공인은 죽는다", "인건비 감당 안 됨"] },
+      { "id": "c4", "text": "생산성으로 상쇄 가능", "count": 610, "stance": "positive",
+        "sample_comments": ["집중해서 일하면 4일로 충분", "유럽 사례 보면 총생산 유지됨"] },
+      { "id": "c5", "text": "업종마다 다르게 적용해야", "count": 505, "stance": "neutral",
+        "sample_comments": ["일괄 도입 말고 업종별 선택제로", "제조업이랑 IT를 같은 기준으로 보면 안 됨"] }
+    ],
+    "relations": [
+      { "from": "c2", "to": "c1", "type": "attack" },
+      { "from": "c3", "to": "c1", "type": "attack" },
+      { "from": "c4", "to": "c2", "type": "attack" },
+      { "from": "c5", "to": "c3", "type": "related" }
+    ],
+    "hidden_opinions": [
+      { "text": "돌봄·의료 등 필수인력 공백 우려", "share": 0.11, "top_share": 0.01 }
+    ]
+  },
+
+  "movie": {
+    "topic": "이 화제작, 명작인가 과대평가인가?",
+    "meta": { "total_comments": 3987, "topic_count": 6, "claim_count": 5 },
+    "claims": [
+      { "id": "c1", "text": "영상미가 압도적이다", "count": 1305, "stance": "positive",
+        "sample_comments": ["극장에서 볼 가치가 있는 화면", "한 장면 한 장면이 그림 같다"] },
+      { "id": "c2", "text": "스토리가 빈약하다", "count": 998, "stance": "negative",
+        "sample_comments": ["볼거리만 있고 알맹이가 없다", "2시간 내내 뭘 말하려는 건지 모르겠다"] },
+      { "id": "c3", "text": "연출 의도를 이해 못한 것", "count": 720, "stance": "positive",
+        "sample_comments": ["일부러 여백을 둔 연출인데 그걸 빈약하다고 함", "두 번 보면 다르게 보임"] },
+      { "id": "c4", "text": "러닝타임이 너무 길다", "count": 540, "stance": "negative",
+        "sample_comments": ["30분은 잘라도 됐다", "중반부 늘어져서 졸았다"] },
+      { "id": "c5", "text": "OST가 몰입을 살렸다", "count": 611, "stance": "positive",
+        "sample_comments": ["음악 때문에 소름 돋은 장면 많음", "사운드트랙만 따로 들어도 좋다"] }
+    ],
+    "relations": [
+      { "from": "c3", "to": "c2", "type": "attack" },
+      { "from": "c1", "to": "c3", "type": "support" },
+      { "from": "c4", "to": "c2", "type": "support" },
+      { "from": "c5", "to": "c1", "type": "related" }
+    ],
+    "hidden_opinions": [
+      { "text": "감독 전작과의 연결고리", "share": 0.09, "top_share": 0.01 }
+    ]
+  }
+}

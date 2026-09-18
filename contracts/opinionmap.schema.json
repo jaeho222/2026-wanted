@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpinionMap (계약서 ② : analyzer → frontend)",
+  "description": "analyzer가 댓글을 분석해 뱉는 최종 결과물. frontend는 이 형식만 받아서 Opinion Map을 그린다.",
+  "type": "object",
+  "required": ["topic", "claims", "relations", "hidden_opinions"],
+  "properties": {
+    "topic": { "type": "string", "description": "이 영상 댓글창의 핵심 논쟁 주제" },
+    "meta": {
+      "type": "object",
+      "description": "선택: 로딩 화면/헤더 표시용 통계",
+      "properties": {
+        "total_comments": { "type": "integer" },
+        "topic_count":    { "type": "integer" },
+        "claim_count":    { "type": "integer" }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "description": "핵심 논점(노드). count가 클수록 노드 크게.",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "count", "stance", "sample_comments"],
+        "properties": {
+          "id":    { "type": "string", "description": "논점 id (예: c1)" },
+          "text":  { "type": "string", "description": "논점 한 줄 요약" },
+          "count": { "type": "integer", "description": "이 논점에 해당하는 댓글 수" },
+          "stance": {
+            "type": "string",
+            "enum": ["positive", "negative", "neutral"],
+            "description": "주제에 대한 입장"
+          },
+          "sample_comments": {
+            "type": "array",
+            "description": "노드 클릭 시 보여줄 실제 대표 댓글 (원문 텍스트)",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "relations": {
+      "type": "array",
+      "description": "논점 사이의 관계(엣지). support=지지, attack=반박, related=연관.",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "type"],
+        "properties": {
+          "from": { "type": "string", "description": "출발 claim id" },
+          "to":   { "type": "string", "description": "도착 claim id" },
+          "type": {
+            "type": "string",
+            "enum": ["support", "attack", "related"],
+            "description": "관계 종류"
+          }
+        }
+      }
+    },
+    "hidden_opinions": {
+      "type": "array",
+      "description": "인기 댓글엔 거의 없지만 전체에서 반복되는 '숨은 의견'.",
+      "items": {
+        "type": "object",
+        "required": ["text", "share", "top_share"],
+        "properties": {
+          "text":      { "type": "string", "description": "숨은 의견 요약" },
+          "share":     { "type": "number", "description": "전체 댓글 중 비율 (0~1)" },
+          "top_share": { "type": "number", "description": "인기 댓글 중 비율 (0~1)" }
+        }
+      }
+    }
+  }
+}

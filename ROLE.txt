@@ -1,0 +1,27 @@
+
+김지윤 A (collector)
+
+collector/ 안에 youtube.py, clean.py, __init__.py
+requirements.txt (쓴 라이브러리 목록)
+API 키는 절대 올리지 마 — .env에 넣고 gitignore
+
+박소연 B (analyzer)
+
+analyzer/ 안에 embed.py, cluster.py, extract.py, relate.py, __init__.py
+requirements.txt
+여기도 LLM API 키 절대 금지 — .env
+
+전재호 (C / frontend)
+
+frontend/ 안에 Next.js 프로젝트 통째로
+올릴 것: app/, components/, package.json, Tailwind 설정 등
+node_modules/, .next/는 절대 올리지 마 (.gitignore 처리 — 용량 폭발)
+
+올리는 흐름 (매번 이 순서)
+bash
+git checkout main && git pull        # 남의 최신 먼저 받고
+git checkout -b feat/내작업           # 브랜치 파고
+# ...작업...
+git add .
+git commit -m "무슨 작업했는지"
+git push -u origin feat/내작업        # 올리고 → GitHub에서 PR → merge
