@@ -58,8 +58,10 @@ def build_relation_candidates(
     E5를 이용해 관계가 있을 가능성이 높은
     claim 조합을 찾는다.
 
-    여기서는 관계의 방향을 판단하지 않는다.
-    E5는 후보를 줄이는 역할만 한다.
+    E5는 관계 종류나 방향을 결정하지 않고
+    Claude에게 전달할 후보만 줄인다.
+
+    동일한 A-B 조합은 한 번만 생성한다.
     """
 
     if len(claims) < 2:
@@ -112,7 +114,13 @@ def build_relation_candidates(
 
                 candidate_pairs.append({
                     "index_a": pair_key[0],
-                    "index_b": pair_key[1]
+                    "index_b": pair_key[1],
+                    "claim_a": claims[
+                        pair_key[0]
+                    ]["text"],
+                    "claim_b": claims[
+                        pair_key[1]
+                    ]["text"]
                 })
 
             selected_count += 1
@@ -123,68 +131,20 @@ def build_relation_candidates(
     return candidate_pairs
 
 
-def build_directional_pairs(
-    candidate_pairs,
-    claims
-):
-    """
-    하나의 관계 후보에 대해
-    A -> B와 B -> A를 모두 만든다.
-
-    support / attack은 방향성이 있기 때문에
-    두 방향을 각각 판정한다.
-    """
-
-    directional_pairs = []
-
-    for pair in candidate_pairs:
-        index_a = pair[
-            "index_a"
-        ]
-
-        index_b = pair[
-            "index_b"
-        ]
-
-        directional_pairs.append({
-            "from_index": index_a,
-            "to_index": index_b,
-            "claim_a": claims[
-                index_a
-            ]["text"],
-            "claim_b": claims[
-                index_b
-            ]["text"]
-        })
-
-        directional_pairs.append({
-            "from_index": index_b,
-            "to_index": index_a,
-            "claim_a": claims[
-                index_b
-            ]["text"],
-            "claim_b": claims[
-                index_a
-            ]["text"]
-        })
-
-    return directional_pairs
-
-
 def classify_relation_candidates(
-    directional_pairs
+    candidate_pairs
 ):
     """
-    방향이 포함된 claim pair를
-    Claude에게 전달해 관계를 판정한다.
+    각 claim pair를 Claude에게 한 번만 전달해
+    관계 종류와 방향을 함께 판정한다.
     """
 
-    if not directional_pairs:
+    if not candidate_pairs:
         return []
 
     matcher_input = []
 
-    for pair in directional_pairs:
+    for pair in candidate_pairs:
         matcher_input.append({
             "claim_a": pair["claim_a"],
             "claim_b": pair["claim_b"]
@@ -204,28 +164,91 @@ def classify_relation_candidates(
 
         if not (
             0 <= pair_id < len(
-                directional_pairs
+                candidate_pairs
             )
         ):
             continue
 
-        pair = directional_pairs[
+        pair = candidate_pairs[
             pair_id
         ]
 
         classified.append({
-            "from_index": pair[
-                "from_index"
-            ],
-            "to_index": pair[
-                "to_index"
-            ],
-            "relation": decision[
-                "relation"
+            "index_a": pair["index_a"],
+            "index_b": pair["index_b"],
+            "decision": decision[
+                "decision"
             ]
         })
 
     return classified
+
+
+def convert_to_relation(
+    result,
+    claims
+):
+    """
+    Claude의 방향성 decision을
+    OpinionMap relation 구조로 변환한다.
+    """
+
+    decision = result[
+        "decision"
+    ]
+
+    index_a = result[
+        "index_a"
+    ]
+
+    index_b = result[
+        "index_b"
+    ]
+
+    claim_a = claims[
+        index_a
+    ]
+
+    claim_b = claims[
+        index_b
+    ]
+
+    if decision == "a_supports_b":
+        return {
+            "from": claim_a["id"],
+            "to": claim_b["id"],
+            "type": "support"
+        }
+
+    if decision == "b_supports_a":
+        return {
+            "from": claim_b["id"],
+            "to": claim_a["id"],
+            "type": "support"
+        }
+
+    if decision == "a_attacks_b":
+        return {
+            "from": claim_a["id"],
+            "to": claim_b["id"],
+            "type": "attack"
+        }
+
+    if decision == "b_attacks_a":
+        return {
+            "from": claim_b["id"],
+            "to": claim_a["id"],
+            "type": "attack"
+        }
+
+    if decision == "related":
+        return {
+            "from": claim_a["id"],
+            "to": claim_b["id"],
+            "type": "related"
+        }
+
+    return None
 
 
 def build_relations(
@@ -233,12 +256,12 @@ def build_relations(
     top_k=3
 ):
     """
-    최종 claim 사이의 방향성 관계를 만든다.
+    최종 claim 사이의 관계를 만든다.
 
     과정:
     1. E5로 관계 후보 탐색
-    2. 각 후보를 양방향 pair로 변환
-    3. Claude가 각 방향의 관계 판정
+    2. 각 claim pair를 Claude에게 한 번만 전달
+    3. 관계 종류와 방향을 동시에 판정
     4. none 제거
     5. OpinionMap relation 형태로 변환
     """
@@ -258,44 +281,29 @@ def build_relations(
         )
     )
 
-    directional_pairs = (
-        build_directional_pairs(
-            candidate_pairs,
-            claims
-        )
-    )
-
     classified = (
         classify_relation_candidates(
-            directional_pairs
+            candidate_pairs
         )
     )
 
     relations = []
-
     seen_relations = set()
 
     for result in classified:
 
-        relation = result[
-            "relation"
-        ]
+        relation = convert_to_relation(
+            result,
+            claims
+        )
 
-        if relation == "none":
+        if relation is None:
             continue
 
-        from_claim = claims[
-            result["from_index"]
-        ]
-
-        to_claim = claims[
-            result["to_index"]
-        ]
-
         relation_key = (
-            from_claim["id"],
-            to_claim["id"],
-            relation
+            relation["from"],
+            relation["to"],
+            relation["type"]
         )
 
         if relation_key in seen_relations:
@@ -305,10 +313,8 @@ def build_relations(
             relation_key
         )
 
-        relations.append({
-            "from": from_claim["id"],
-            "to": to_claim["id"],
-            "type": relation
-        })
+        relations.append(
+            relation
+        )
 
     return relations

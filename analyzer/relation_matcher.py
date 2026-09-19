@@ -11,38 +11,56 @@ You are a claim relation classification system for CommentMap.
 CommentMap visualizes the structure of opinions and arguments
 expressed across comments.
 
-Your task is to determine the relationship between two distinct claims.
+For each pair of distinct claims, determine whether there is a
+meaningful argumentative relationship between them.
 
-Possible relations:
+Possible decisions:
 
-- "support":
+- "a_supports_b":
   Claim A provides a reason, evidence, explanation, or argument
   that supports Claim B.
 
-- "attack":
+- "b_supports_a":
+  Claim B provides a reason, evidence, explanation, or argument
+  that supports Claim A.
+
+- "a_attacks_b":
   Claim A contradicts, challenges, rejects, or provides a reason
   against Claim B.
 
+- "b_attacks_a":
+  Claim B contradicts, challenges, rejects, or provides a reason
+  against Claim A.
+
 - "related":
-  Claim A and Claim B concern meaningfully related issues, but
-  neither clearly supports nor attacks the other.
+  The claims have a meaningful semantic connection, but neither
+  clearly supports nor attacks the other.
 
 - "none":
-  There is no meaningful argumentative relationship between them.
+  There is no meaningful relationship worth displaying.
 
 Rules:
-1. Do not classify two claims as "support" merely because they express
-   similar opinions.
-2. Do not classify two claims as "attack" merely because their
-   sentiment is different.
-3. Topic similarity alone is not enough for "support" or "attack".
-4. Use "related" only when there is a meaningful semantic connection.
-5. Use "none" when the connection is weak or incidental.
-6. Judge the direction from Claim A to Claim B.
-7. Do not judge whether either claim is factually true.
-8. Do not invent missing context.
-9. Preserve uncertainty expressed in the claims.
-10. Return JSON only. Do not include Markdown or explanations.
+1. Classify each pair only once.
+2. Choose only one decision for each pair.
+3. Similar opinions do not automatically support each other.
+4. Claims appearing in the same comment do not automatically
+   support or attack each other.
+5. Topic similarity alone is not enough for support or attack.
+6. Use support only when one claim actually gives a reason,
+   evidence, explanation, or argumentative basis for the other.
+7. Use attack only when one claim actually contradicts, rejects,
+   challenges, or argues against the other.
+8. If two claims can both be true without conflict, do not classify
+   them as attack merely because they emphasize different things.
+9. Use related when there is a meaningful connection but no clear
+   argumentative direction.
+10. Use none when the connection is weak, incidental, or would not
+    add useful structure to an opinion map.
+11. Do not infer missing premises or context.
+12. Do not judge whether either claim is factually true.
+13. When uncertain between support/attack and related, prefer related.
+14. When uncertain between related and none, prefer none.
+15. Return JSON only. Do not include Markdown or explanations.
 
 Output format:
 
@@ -50,11 +68,21 @@ Output format:
   "results": [
     {
       "pair_id": 0,
-      "relation": "support"
+      "decision": "a_supports_b"
     }
   ]
 }
 """
+
+
+VALID_DECISIONS = {
+    "a_supports_b",
+    "b_supports_a",
+    "a_attacks_b",
+    "b_attacks_a",
+    "related",
+    "none"
+}
 
 
 def build_prompt(claim_pairs):
@@ -73,8 +101,8 @@ def build_prompt(claim_pairs):
         })
 
     return (
-        "Classify the relationship from Claim A to Claim B "
-        "for each pair.\n\n"
+        "Classify each claim pair using exactly one "
+        "of the allowed decisions.\n\n"
         + json.dumps(
             pair_data,
             ensure_ascii=False,
@@ -106,7 +134,7 @@ def clean_json_response(response_text):
 def parse_response(response_text):
     """
     Claude 응답을 JSON으로 변환하고
-    relation 값을 검증한다.
+    decision 값을 검증한다.
     """
 
     cleaned_response = clean_json_response(
@@ -141,13 +169,6 @@ def parse_response(response_text):
 
     validated_results = []
 
-    valid_relations = {
-        "support",
-        "attack",
-        "related",
-        "none"
-    }
-
     for result in results:
 
         if not isinstance(result, dict):
@@ -157,19 +178,19 @@ def parse_response(response_text):
             "pair_id"
         )
 
-        relation = result.get(
-            "relation"
+        decision = result.get(
+            "decision"
         )
 
         if not isinstance(pair_id, int):
             continue
 
-        if relation not in valid_relations:
+        if decision not in VALID_DECISIONS:
             continue
 
         validated_results.append({
             "pair_id": pair_id,
-            "relation": relation
+            "decision": decision
         })
 
     return validated_results
@@ -202,10 +223,11 @@ def match_claim_relations(
     batch_size=20
 ):
     """
-    claim pair의 관계를 판정한다.
+    claim pair의 관계와 방향을
+    한 번에 판정한다.
 
     동일한 batch의 캐시가 존재하면
-    API를 호출하지 않는다.
+    API를 다시 호출하지 않는다.
     """
 
     if not claim_pairs:
