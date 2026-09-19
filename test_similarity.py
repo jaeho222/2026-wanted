@@ -1,4 +1,6 @@
 import json
+import sys
+
 import numpy as np
 
 from analyzer.preprocess import preprocess_comments
@@ -25,15 +27,14 @@ def show_similar_comments(
     top_k=3
 ):
     """
-    일부 댓글을 골라 각 댓글과 의미적으로
-    가장 비슷한 댓글 TOP K를 출력한다.
+    데이터 전체에서 댓글을 골고루 선택하고,
+    각 댓글과 의미적으로 가장 비슷한 댓글을 출력한다.
     """
 
     similarity_matrix = cosine_similarity_matrix(
         embeddings
     )
 
-    # 데이터 전체 구간에서 골고루 샘플을 선택
     sample_count = min(
         sample_count,
         len(comments)
@@ -46,11 +47,14 @@ def show_similar_comments(
         dtype=int
     )
 
+    sample_indices = np.unique(
+        sample_indices
+    )
+
     for index in sample_indices:
 
         similarities = similarity_matrix[index]
 
-        # 자기 자신은 제외
         ranked_indices = np.argsort(
             similarities
         )[::-1]
@@ -66,6 +70,7 @@ def show_similar_comments(
         print(
             f"[기준 댓글 #{index + 1}]"
         )
+
         print(
             comments[index]["text"]
         )
@@ -92,17 +97,54 @@ def show_similar_comments(
 
 def main():
 
-    # 실제 수집 댓글 불러오기
-    with open(
-        "comments.json",
-        "r",
-        encoding="utf-8"
-    ) as file:
-        comments = json.load(file)
+    if len(sys.argv) < 2:
+        print(
+            "사용법: "
+            "python test_similarity.py <댓글 JSON 파일>"
+        )
+        return
 
-    # 전처리
+    file_path = sys.argv[1]
+
+    try:
+        with open(
+            file_path,
+            "r",
+            encoding="utf-8"
+        ) as file:
+            comments = json.load(file)
+
+    except FileNotFoundError:
+        print(
+            f"파일을 찾을 수 없습니다: "
+            f"{file_path}"
+        )
+        return
+
+    except json.JSONDecodeError:
+        print(
+            f"올바른 JSON 파일이 아닙니다: "
+            f"{file_path}"
+        )
+        return
+
+    if not isinstance(comments, list):
+        print(
+            "댓글 JSON의 최상위 구조는 "
+            "리스트여야 합니다."
+        )
+        return
+
     processed_comments = preprocess_comments(
         comments
+    )
+
+    print(
+        f"데이터 파일: {file_path}"
+    )
+
+    print(
+        f"원본 댓글 수: {len(comments)}"
     )
 
     print(
@@ -110,12 +152,16 @@ def main():
         f"{len(processed_comments)}"
     )
 
-    # Embedding
+    if not processed_comments:
+        print(
+            "분석 가능한 댓글이 없습니다."
+        )
+        return
+
     embeddings = embed_comments(
         processed_comments
     )
 
-    # 비슷한 댓글 확인
     show_similar_comments(
         processed_comments,
         embeddings,
