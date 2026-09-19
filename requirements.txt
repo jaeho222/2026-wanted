@@ -1,0 +1,5 @@
+google-api-python-client
+python-dotenv
+emoji
+jsonschema[format]
+pytest
