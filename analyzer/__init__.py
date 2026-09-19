@@ -33,36 +33,57 @@ def build_hidden_opinions(
     total_comments
 ):
     """
-    전체 댓글에서 차지하는 비율은 낮지만
-    독립적인 claim으로 살아남은 의견을 찾는다.
+    여러 독립 댓글에서 반복되었지만
+    가장 많이 등장한 핵심 의견은 아닌 claim을
+    hidden opinion 후보로 찾는다.
 
-    특정 키워드나 주제에 의존하지 않고
-    claim의 실제 등장 비율을 이용한다.
+    단 한 번만 등장한 의견은
+    우연한 개인 발언일 수 있으므로
+    hidden opinion으로 분류하지 않는다.
+
+    특정 주제, 키워드 또는 고정 비율 임계값에
+    의존하지 않는다.
     """
 
     if not claims or total_comments <= 0:
         return []
 
-    counts = [
-        claim.get("count", 0)
+    valid_claims = [
+        claim
         for claim in claims
         if claim.get("count", 0) > 0
     ]
 
-    if not counts:
+    if not valid_claims:
         return []
 
-    top_count = max(counts)
+    top_count = max(
+        claim.get("count", 0)
+        for claim in valid_claims
+    )
+
+    # 모든 의견이 한 번씩만 등장했다면
+    # 반복적으로 관측된 의견이 없으므로
+    # hidden opinion을 만들지 않는다.
+    if top_count <= 1:
+        return []
 
     hidden_opinions = []
 
-    for claim in claims:
+    for claim in valid_claims:
         count = claim.get(
             "count",
             0
         )
 
-        if count <= 0:
+        # 한 댓글에서만 등장한 의견은
+        # hidden opinion으로 확정하지 않는다.
+        if count < 2:
+            continue
+
+        # 가장 많이 등장한 핵심 의견은
+        # hidden opinion으로 보지 않는다.
+        if count >= top_count:
             continue
 
         share = (
@@ -73,29 +94,17 @@ def build_hidden_opinions(
             count / top_count
         )
 
-        # 가장 많이 등장한 핵심 의견은
-        # hidden opinion으로 보지 않는다.
-        if count >= top_count:
-            continue
-
-        # 전체 댓글의 10% 이하이면서
-        # 최다 의견보다 충분히 작은 경우만
-        # 소수 의견 후보로 사용한다.
-        if (
-            share <= 0.10
-            and top_share <= 0.50
-        ):
-            hidden_opinions.append({
-                "text": claim["text"],
-                "share": round(
-                    share,
-                    4
-                ),
-                "top_share": round(
-                    top_share,
-                    4
-                )
-            })
+        hidden_opinions.append({
+            "text": claim["text"],
+            "share": round(
+                share,
+                4
+            ),
+            "top_share": round(
+                top_share,
+                4
+            )
+        })
 
     return hidden_opinions
 
@@ -159,7 +168,7 @@ def analyze(
         claims
     )
 
-    # 5. 소수 의견 탐색
+    # 5. 반복적으로 관측된 비주류 의견 탐색
     hidden_opinions = build_hidden_opinions(
         claims,
         len(processed_comments)

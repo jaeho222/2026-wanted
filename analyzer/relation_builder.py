@@ -58,10 +58,11 @@ def build_relation_candidates(
     E5를 이용해 관계가 있을 가능성이 높은
     claim 조합을 찾는다.
 
-    E5는 관계 종류나 방향을 결정하지 않고
-    Claude에게 전달할 후보만 줄인다.
+    E5는 후보만 선택하고 관계 종류나 방향은
+    결정하지 않는다.
 
-    동일한 A-B 조합은 한 번만 생성한다.
+    relation 판단에 사용할 수 있도록
+    각 claim의 원댓글 예시도 함께 보존한다.
     """
 
     if len(claims) < 2:
@@ -112,15 +113,27 @@ def build_relation_candidates(
                     pair_key
                 )
 
+                claim_a = claims[
+                    pair_key[0]
+                ]
+
+                claim_b = claims[
+                    pair_key[1]
+                ]
+
                 candidate_pairs.append({
                     "index_a": pair_key[0],
                     "index_b": pair_key[1],
-                    "claim_a": claims[
-                        pair_key[0]
-                    ]["text"],
-                    "claim_b": claims[
-                        pair_key[1]
-                    ]["text"]
+                    "claim_a": claim_a["text"],
+                    "claim_b": claim_b["text"],
+                    "context_a": claim_a.get(
+                        "sample_comments",
+                        []
+                    ),
+                    "context_b": claim_b.get(
+                        "sample_comments",
+                        []
+                    )
                 })
 
             selected_count += 1
@@ -135,8 +148,8 @@ def classify_relation_candidates(
     candidate_pairs
 ):
     """
-    각 claim pair를 Claude에게 한 번만 전달해
-    관계 종류와 방향을 함께 판정한다.
+    claim뿐 아니라 해당 claim이 나온 원댓글 맥락도
+    Claude에게 전달해 관계를 판정한다.
     """
 
     if not candidate_pairs:
@@ -147,7 +160,15 @@ def classify_relation_candidates(
     for pair in candidate_pairs:
         matcher_input.append({
             "claim_a": pair["claim_a"],
-            "claim_b": pair["claim_b"]
+            "claim_b": pair["claim_b"],
+            "context_a": pair.get(
+                "context_a",
+                []
+            ),
+            "context_b": pair.get(
+                "context_b",
+                []
+            )
         })
 
     decisions = match_claim_relations(
@@ -260,8 +281,8 @@ def build_relations(
 
     과정:
     1. E5로 관계 후보 탐색
-    2. 각 claim pair를 Claude에게 한 번만 전달
-    3. 관계 종류와 방향을 동시에 판정
+    2. claim + 원댓글 맥락을 Claude에 전달
+    3. 관계 종류와 방향을 한 번에 판정
     4. none 제거
     5. OpinionMap relation 형태로 변환
     """

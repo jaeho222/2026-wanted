@@ -5,40 +5,62 @@ from .cache import load_cache, save_cache
 from .claude_client import ask_claude, MODEL_NAME
 
 
+BATCH_SIZE = 10
+
+
 SYSTEM_PROMPT = """
-You are an opinion claim extraction system for CommentMap.
+You are a claim extraction system for CommentMap.
 
-CommentMap does not summarize comments.
-Its purpose is to identify distinct opinions and arguments expressed
-across comments.
+CommentMap analyzes the structure of opinions in online comments.
 
-Extract claims from each comment.
+Your task is to extract explicit claims or opinions from each comment.
+
+A single comment may contain:
+- zero claims,
+- one claim,
+- or multiple independent claims.
 
 Rules:
-1. A single comment may contain zero, one, or multiple claims.
-2. Split a comment into multiple claims when it expresses multiple
-   independent opinions.
-3. Do not invent information that is not present in the comment.
-4. Ignore content that contains no meaningful opinion or argument,
-   such as simple timestamps or meaningless reactions.
-5. Keep each claim short, clear, and self-contained.
-6. Preserve the language of the original comment.
-7. Do not merge claims from different comments.
-8. Do not decide whether claims from different comments are similar.
-   That will be handled in a later stage.
-9. Do not classify sentiment or stance at this stage.
-10. A claim should be understandable without reading the original
-    comment whenever the original comment provides enough information.
-11. Avoid ambiguous references such as "it", "they", "this", "that",
-    "this video", "this product", or similar expressions when their
-    referent can be identified from the comment.
-12. Replace an ambiguous reference with its actual subject only when
-    that subject is explicitly identifiable from the comment.
-13. Never guess or add missing context merely to make a claim
-    self-contained.
-14. Preserve the meaning, certainty, and strength of the original
-    statement. Do not strengthen speculation into fact.
-15. Return JSON only. Do not include Markdown or explanations.
+
+1. Extract only claims or opinions that are explicitly expressed
+   in the supplied comment.
+
+2. Do not invent, infer, strengthen, or generalize claims beyond
+   what the commenter actually says.
+
+3. Split a comment into multiple claims when it clearly expresses
+   multiple independent opinions.
+
+4. Ignore content that does not express a meaningful opinion or claim,
+   such as isolated timestamps, meaningless reactions, or unrelated noise.
+
+5. Preserve the language of the original comment.
+   - Korean comments must produce Korean claims.
+   - English comments must produce English claims.
+   - Comments in other languages must remain in their original language.
+   - Do not translate claims into English unless the original claim
+     itself is written in English.
+   - For mixed-language comments, preserve the language naturally used
+     for the relevant claim.
+
+6. Preserve names, titles, product names, song names, group names,
+   people names, and other proper nouns as written in the source
+   whenever possible.
+   Do not replace a proper noun with another entity.
+   Do not guess what an unfamiliar proper noun refers to.
+
+7. Normalize a claim only enough to make it concise and understandable.
+   Preserve the original meaning, tone, subject, and level of specificity.
+
+8. A specific claim must not be rewritten as a broader claim.
+   A broad claim must not be rewritten as a more specific claim.
+
+9. Do not classify sentiment or stance.
+
+10. Do not judge whether a claim is factually true.
+
+11. Return JSON only.
+    Do not include Markdown or explanations.
 
 Output format:
 
@@ -48,7 +70,7 @@ Output format:
       "comment_id": "original comment id",
       "claims": [
         {
-          "text": "self-contained claim"
+          "text": "extracted claim"
         }
       ]
     }
@@ -57,9 +79,10 @@ Output format:
 """
 
 
-def build_prompt(comments):
+def build_comment_data(comments):
     """
-    Claude에 전달할 댓글 데이터를 만든다.
+    Claude 입력과 캐시에서 공통으로 사용하는
+    댓글 데이터를 만든다.
     """
 
     comment_data = []
@@ -67,14 +90,24 @@ def build_prompt(comments):
     for comment in comments:
         comment_data.append({
             "id": comment["id"],
-            "text": comment.get(
-                "analysis_text",
-                comment.get("text", "")
-            )
+            "text": comment["text"]
         })
 
+    return comment_data
+
+
+def build_prompt(comments):
+    """
+    댓글들을 Claude에게 전달할
+    JSON 형태의 프롬프트로 만든다.
+    """
+
+    comment_data = build_comment_data(
+        comments
+    )
+
     return (
-        "Extract claims from the following comments.\n\n"
+        "Extract explicit claims from each comment.\n\n"
         + json.dumps(
             comment_data,
             ensure_ascii=False,
@@ -85,8 +118,8 @@ def build_prompt(comments):
 
 def clean_json_response(response_text):
     """
-    Claude가 JSON을 Markdown 코드 블록으로 감싼 경우
-    코드 블록을 제거한다.
+    JSON 응답이 Markdown 코드 블록으로
+    감싸져 있으면 제거한다.
     """
 
     text = response_text.strip()
@@ -105,8 +138,8 @@ def clean_json_response(response_text):
 
 def parse_response(response_text):
     """
-    Claude의 JSON 응답을 Python 객체로 변환하고
-    기본적인 응답 구조를 검증한다.
+    Claude 응답을 JSON으로 변환하고
+    필요한 구조만 검증한다.
     """
 
     cleaned_response = clean_json_response(
@@ -120,7 +153,8 @@ def parse_response(response_text):
 
     except json.JSONDecodeError as error:
         raise ValueError(
-            "Claude 응답을 JSON으로 변환하지 못했습니다.\n"
+            "Claude claim extraction 응답을 "
+            "JSON으로 변환하지 못했습니다.\n"
             f"응답 내용:\n{response_text}"
         ) from error
 
@@ -154,13 +188,13 @@ def parse_response(response_text):
             []
         )
 
-        if not comment_id:
+        if comment_id is None:
             continue
 
         if not isinstance(claims, list):
             continue
 
-        valid_claims = []
+        validated_claims = []
 
         for claim in claims:
 
@@ -168,20 +202,26 @@ def parse_response(response_text):
                 continue
 
             text = claim.get(
-                "text",
-                ""
-            ).strip()
+                "text"
+            )
+
+            if not isinstance(text, str):
+                continue
+
+            text = text.strip()
 
             if not text:
                 continue
 
-            valid_claims.append({
+            validated_claims.append({
                 "text": text
             })
 
         validated_results.append({
-            "comment_id": comment_id,
-            "claims": valid_claims
+            "comment_id": str(
+                comment_id
+            ),
+            "claims": validated_claims
         })
 
     return validated_results
@@ -189,41 +229,47 @@ def parse_response(response_text):
 
 def make_cache_data(comments):
     """
-    claim extraction 결과를 구분하기 위한
-    캐시 입력 데이터를 만든다.
-
-    모델이나 프롬프트가 변경되면
-    기존 캐시를 사용하지 않는다.
+    모델, 프롬프트, 댓글 내용을 포함해
+    claim extraction 결과의 캐시 키를 만든다.
     """
-
-    comment_data = []
-
-    for comment in comments:
-        comment_data.append({
-            "id": comment["id"],
-            "text": comment.get(
-                "analysis_text",
-                comment.get("text", "")
-            )
-        })
 
     return {
         "model": MODEL_NAME,
         "system_prompt": SYSTEM_PROMPT,
-        "comments": comment_data
+        "comments": build_comment_data(
+            comments
+        )
     }
 
 
-def extract_claims_with_claude(comments):
+def split_batches(
+    items,
+    batch_size
+):
+    """
+    입력 데이터를 일정한 크기의 batch로 나눈다.
+    """
+
+    return [
+        items[
+            start:start + batch_size
+        ]
+        for start in range(
+            0,
+            len(items),
+            batch_size
+        )
+    ]
+
+
+def extract_claims_batch(
+    comments,
+    batch_number,
+    total_batches
+):
     """
     하나의 댓글 batch에서 claim을 추출한다.
-
-    동일한 입력의 결과가 캐시에 있으면
-    Claude API를 다시 호출하지 않는다.
     """
-
-    if not comments:
-        return []
 
     cache_data = make_cache_data(
         comments
@@ -236,13 +282,17 @@ def extract_claims_with_claude(comments):
 
     if cached_result is not None:
         print(
-            "Claim extraction: 캐시 사용 (API 호출 없음)"
+            f"Claim extraction: batch "
+            f"{batch_number}/{total_batches} "
+            "캐시 사용 (API 호출 없음)"
         )
 
         return cached_result
 
     print(
-        "Claim extraction: Claude API 호출"
+        f"Claim extraction: batch "
+        f"{batch_number}/{total_batches} "
+        "Claude API 호출"
     )
 
     prompt = build_prompt(
@@ -255,14 +305,63 @@ def extract_claims_with_claude(comments):
         max_tokens=2048
     )
 
-    result = parse_response(
-        response
-    )
+    try:
+        batch_results = parse_response(
+            response
+        )
+
+    except ValueError as error:
+        raise ValueError(
+            f"Claim extraction batch "
+            f"{batch_number}/{total_batches} 처리 실패.\n"
+            f"{error}"
+        ) from error
 
     save_cache(
         "claim_extractor",
         cache_data,
-        result
+        batch_results
     )
 
-    return result
+    return batch_results
+
+
+def extract_claims_with_claude(comments):
+    """
+    댓글에서 claim을 추출한다.
+
+    긴 입력으로 Claude 응답이 잘리는 것을 막기 위해
+    댓글을 여러 batch로 나누어 처리한다.
+
+    각 batch는 독립적으로 캐시된다.
+    """
+
+    if not comments:
+        return []
+
+    batches = split_batches(
+        comments,
+        BATCH_SIZE
+    )
+
+    total_batches = len(
+        batches
+    )
+
+    all_results = []
+
+    for batch_number, batch in enumerate(
+        batches,
+        start=1
+    ):
+        batch_results = extract_claims_batch(
+            batch,
+            batch_number,
+            total_batches
+        )
+
+        all_results.extend(
+            batch_results
+        )
+
+    return all_results
