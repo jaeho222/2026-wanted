@@ -3,7 +3,25 @@ from sentence_transformers import SentenceTransformer
 
 MODEL_NAME = "intfloat/multilingual-e5-small"
 
-model = SentenceTransformer(MODEL_NAME)
+_model = None
+
+
+def get_model():
+    """
+    E5 모델이 실제로 필요한 시점에만 로딩한다.
+
+    이미 로딩된 모델이 있으면
+    같은 모델 객체를 다시 사용한다.
+    """
+
+    global _model
+
+    if _model is None:
+        _model = SentenceTransformer(
+            MODEL_NAME
+        )
+
+    return _model
 
 
 def embed_comments(comments):
@@ -25,10 +43,11 @@ def embed_comments(comments):
             comment.get("text", "")
         )
 
-        # E5 모델은 passage prefix를 붙여 사용하는 것이 권장된다.
         texts.append(
             f"passage: {text}"
         )
+
+    model = get_model()
 
     embeddings = model.encode(
         texts,
