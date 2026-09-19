@@ -1,32 +1,35 @@
 from sentence_transformers import SentenceTransformer
 
 
-# 한국어를 포함한 다국어 문장을 벡터로 변환하는 모델
 MODEL_NAME = "intfloat/multilingual-e5-small"
 
-# 모델은 한 번만 불러온다.
 model = SentenceTransformer(MODEL_NAME)
 
 
 def embed_comments(comments):
     """
-    댓글 리스트를 받아 각 댓글의 text를 Embedding 벡터로 변환한다.
+    댓글을 의미 벡터(embedding)로 변환한다.
 
-    입력:
-        comments.schema.json 형식의 댓글 리스트
-
-    출력:
-        댓글 순서와 동일한 순서의 Embedding 벡터 리스트
+    preprocess를 거친 댓글은 analysis_text를 사용하고,
+    없는 경우 기존 text를 사용한다.
     """
 
-    # 댓글이 없으면 빈 리스트 반환
     if not comments:
         return []
 
-    # 댓글에서 text만 추출
-    texts = [comment["text"] for comment in comments]
+    texts = []
 
-    # 로컬 모델로 Embedding 생성
+    for comment in comments:
+        text = comment.get(
+            "analysis_text",
+            comment.get("text", "")
+        )
+
+        # E5 모델은 passage prefix를 붙여 사용하는 것이 권장된다.
+        texts.append(
+            f"passage: {text}"
+        )
+
     embeddings = model.encode(
         texts,
         convert_to_numpy=True,
