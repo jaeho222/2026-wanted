@@ -9,4 +9,5 @@ node_modules/
 # 파이썬
 __pycache__/
 venv/
+.venv/
 *.pyc
